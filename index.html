@@ -1,124 +1,109 @@
-import java.util.HashMap;
-import java.util.Map;
-
-public class VoxelEngineDemo {
-
-    // 1. Define Block Types
-    public enum BlockType {
-        AIR(0, false),
-        DIRT(1, true),
-        GRASS(2, true),
-        STONE(3, true),
-        BEDROCK(4, false);
-
-        private final int id;
-        private final boolean isSolid;
-
-        BlockType(int id, boolean isSolid) {
-            this.id = id;
-            this.isSolid = isSolid;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini Web Minecraft Engine</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #111;
+            font-family: monospace;
         }
-
-        public int getId() { return id; }
-        public boolean isSolid() { return isSolid; }
-    }
-
-    // 2. Chunk Class (Minecraft chunks are typically 16x256x16 blocks)
-    public static class Chunk {
-        public static final int WIDTH = 16;
-        public static final int HEIGHT = 128;
-        public static final int DEPTH = 16;
-
-        private final BlockType[][][] blocks = new BlockType[WIDTH][HEIGHT][DEPTH];
-        private final int chunkX;
-        private final int chunkZ;
-
-        public Chunk(int chunkX, int chunkZ) {
-            this.chunkX = chunkX;
-            this.chunkZ = chunkZ;
-            initializeChunk();
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
         }
+    </style>
+</head>
+<body>
 
-        // Fill chunk with basic terrain (Bedrock at bottom, Stone/Dirt in middle, Grass on top)
-        private void initializeChunk() {
-            for (int x = 0; x < WIDTH; x++) {
-                for (int z = 0; z < DEPTH; z++) {
-                    for (int y = 0; y < HEIGHT; y++) {
-                        if (y == 0) {
-                            blocks[x][y][z] = BlockType.BEDROCK;
-                        } else if (y < 40) {
-                            blocks[x][y][z] = BlockType.STONE;
-                        } else if (y < 43) {
-                            blocks[x][y][z] = BlockType.DIRT;
-                        } else if (y == 43) {
-                            blocks[x][y][z] = BlockType.GRASS;
-                        } else {
-                            blocks[x][y][z] = BlockType.AIR;
-                        }
-                    }
-                }
+    <div id="ui">
+        <h3>Mini WebCraft Sandbox</h3>
+        <p>Use Mouse to look around (Click canvas to lock pointer)</p>
+    </div>
+
+    <!-- Import Three.js from CDN -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
             }
         }
+    </script>
 
-        public BlockType getBlock(int x, int y, int z) {
-            if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT || z < 0 || z >= DEPTH) {
-                return BlockType.AIR;
-            }
-            return blocks[x][y][z];
-        }
+    <script type="module">
+        import * as THREE from 'three';
 
-        public void setBlock(int x, int y, int z, BlockType type) {
-            if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT && z >= 0 && z < DEPTH) {
-                blocks[x][y][z] = type;
-            }
-        }
-    }
+        // 1. Scene, Camera, and Renderer Setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Sky blue
 
-    // 3. World Class managing multiple chunks
-    public static class World {
-        private final Map<String, Chunk> chunks = new HashMap<>();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 10, 15);
 
-        private String getChunkKey(int chunkX, int chunkZ) {
-            return chunkX + "," + chunkZ;
-        }
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-        public void loadChunk(int chunkX, int chunkZ) {
-            String key = getChunkKey(chunkX, chunkZ);
-            if (!chunks.containsKey(key)) {
-                chunks.put(key, new Chunk(chunkX, chunkZ));
-            }
-        }
+        // 2. Add Ambient and Directional Lighting (Sunlight)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
 
-        public Chunk getChunk(int chunkX, int chunkZ) {
-            return chunks.get(getChunkKey(chunkX, chunkZ));
-        }
+        const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        sunLight.position.set(20, 40, 20);
+        scene.add(sunLight);
 
-        // Convert global world coordinates to block lookup
-        public BlockType getBlockAt(int worldX, int worldY, int worldZ) {
-            int chunkX = Math.floorDiv(worldX, Chunk.WIDTH);
-            int chunkZ = Math.floorDiv(worldZ, Chunk.DEPTH);
-            
-            Chunk chunk = getChunk(chunkX, chunkZ);
-            if (chunk == null) return BlockType.AIR;
-
-            int localX = Math.floorMod(worldX, Chunk.WIDTH);
-            int localY = worldY;
-            int localZ = Math.floorMod(worldZ, Chunk.DEPTH);
-
-            return chunk.getBlock(localX, localY, localZ);
-        }
-    }
-
-    // 4. Main entry point to test the structure
-    public static void main(String[] args) {
-        World world = new World();
+        // 3. Create a Simple Voxel Terrain (Grass and Dirt blocks)
+        const blockSize = 1;
+        const geometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
         
-        // Load a chunk at coordinates (0, 0)
-        world.loadChunk(0, 0);
+        // Simple color materials for blocks
+        const grassMaterial = new THREE.MeshLambertMaterial({ color: 0x559033 });
+        const dirtMaterial = new THREE.MeshLambertMaterial({ color: 0x8b5a2b });
+        const stoneMaterial = new THREE.MeshLambertMaterial({ color: 0x7f7f7f });
 
-        // Query blocks at specific world positions
-        System.out.println("Block at (0, 0, 0): " + world.getBlockAt(0, 0, 0));       // BEDROCK
-        System.out.println("Block at (5, 43, 5): " + world.getBlockAt(5, 43, 5));     // GRASS
-        System.out.println("Block at (5, 50, 5): " + world.getBlockAt(5, 50, 5));     // AIR
-    }
-}
+        // Generate a small flat terrain grid
+        const worldSize = 10;
+        for (let x = -worldSize; x < worldSize; x++) {
+            for (let z = -worldSize; z < worldSize; z++) {
+                // Grass layer top
+                let block = new THREE.Mesh(geometry, grassMaterial);
+                block.position.set(x * blockSize, 0, z * blockSize);
+                scene.add(block);
+
+                // Dirt layer underneath
+                let dirt = new THREE.Mesh(geometry, dirtMaterial);
+                dirt.position.set(x * blockSize, -1, z * blockSize);
+                scene.add(dirt);
+
+                // Stone foundation
+                let stone = new THREE.Mesh(geometry, stoneMaterial);
+                stone.position.set(x * blockSize, -2, z * blockSize);
+                scene.add(stone);
+            }
+        }
+
+        // 4. Render Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Handle Window Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
