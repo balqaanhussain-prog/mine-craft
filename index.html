@@ -1,0 +1,124 @@
+import java.util.HashMap;
+import java.util.Map;
+
+public class VoxelEngineDemo {
+
+    // 1. Define Block Types
+    public enum BlockType {
+        AIR(0, false),
+        DIRT(1, true),
+        GRASS(2, true),
+        STONE(3, true),
+        BEDROCK(4, false);
+
+        private final int id;
+        private final boolean isSolid;
+
+        BlockType(int id, boolean isSolid) {
+            this.id = id;
+            this.isSolid = isSolid;
+        }
+
+        public int getId() { return id; }
+        public boolean isSolid() { return isSolid; }
+    }
+
+    // 2. Chunk Class (Minecraft chunks are typically 16x256x16 blocks)
+    public static class Chunk {
+        public static final int WIDTH = 16;
+        public static final int HEIGHT = 128;
+        public static final int DEPTH = 16;
+
+        private final BlockType[][][] blocks = new BlockType[WIDTH][HEIGHT][DEPTH];
+        private final int chunkX;
+        private final int chunkZ;
+
+        public Chunk(int chunkX, int chunkZ) {
+            this.chunkX = chunkX;
+            this.chunkZ = chunkZ;
+            initializeChunk();
+        }
+
+        // Fill chunk with basic terrain (Bedrock at bottom, Stone/Dirt in middle, Grass on top)
+        private void initializeChunk() {
+            for (int x = 0; x < WIDTH; x++) {
+                for (int z = 0; z < DEPTH; z++) {
+                    for (int y = 0; y < HEIGHT; y++) {
+                        if (y == 0) {
+                            blocks[x][y][z] = BlockType.BEDROCK;
+                        } else if (y < 40) {
+                            blocks[x][y][z] = BlockType.STONE;
+                        } else if (y < 43) {
+                            blocks[x][y][z] = BlockType.DIRT;
+                        } else if (y == 43) {
+                            blocks[x][y][z] = BlockType.GRASS;
+                        } else {
+                            blocks[x][y][z] = BlockType.AIR;
+                        }
+                    }
+                }
+            }
+        }
+
+        public BlockType getBlock(int x, int y, int z) {
+            if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT || z < 0 || z >= DEPTH) {
+                return BlockType.AIR;
+            }
+            return blocks[x][y][z];
+        }
+
+        public void setBlock(int x, int y, int z, BlockType type) {
+            if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT && z >= 0 && z < DEPTH) {
+                blocks[x][y][z] = type;
+            }
+        }
+    }
+
+    // 3. World Class managing multiple chunks
+    public static class World {
+        private final Map<String, Chunk> chunks = new HashMap<>();
+
+        private String getChunkKey(int chunkX, int chunkZ) {
+            return chunkX + "," + chunkZ;
+        }
+
+        public void loadChunk(int chunkX, int chunkZ) {
+            String key = getChunkKey(chunkX, chunkZ);
+            if (!chunks.containsKey(key)) {
+                chunks.put(key, new Chunk(chunkX, chunkZ));
+            }
+        }
+
+        public Chunk getChunk(int chunkX, int chunkZ) {
+            return chunks.get(getChunkKey(chunkX, chunkZ));
+        }
+
+        // Convert global world coordinates to block lookup
+        public BlockType getBlockAt(int worldX, int worldY, int worldZ) {
+            int chunkX = Math.floorDiv(worldX, Chunk.WIDTH);
+            int chunkZ = Math.floorDiv(worldZ, Chunk.DEPTH);
+            
+            Chunk chunk = getChunk(chunkX, chunkZ);
+            if (chunk == null) return BlockType.AIR;
+
+            int localX = Math.floorMod(worldX, Chunk.WIDTH);
+            int localY = worldY;
+            int localZ = Math.floorMod(worldZ, Chunk.DEPTH);
+
+            return chunk.getBlock(localX, localY, localZ);
+        }
+    }
+
+    // 4. Main entry point to test the structure
+    public static void main(String[] args) {
+        World world = new World();
+        
+        // Load a chunk at coordinates (0, 0)
+        world.loadChunk(0, 0);
+
+        // Query blocks at specific world positions
+        System.out.println("Block at (0, 0, 0): " + world.getBlockAt(0, 0, 0));       // BEDROCK
+        System.out.println("Block at (5, 43, 5): " + world.getBlockAt(5, 43, 5));     // GRASS
+        System.out.println("Block at (5, 50, 5): " + world.getBlockAt(5, 50, 5));     // AIR
+    }
+}
